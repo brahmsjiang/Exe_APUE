@@ -12,12 +12,20 @@
 #include<unistd.h>	//fork
 #include<sys/mman.h>	//mmap,MAP_SHARED,PROT_READ,PROT_WRITE
 
+
 #define NLOOPS 1000
 #define SIZE 	sizeof(long) //size of shared memory area
 #define err_sys(str) {\
 	perror(str);	\
 	exit(-1);	\
 }
+
+
+extern void TELL_WAIT(void);
+extern void TELL_PARENT(pid_t pid);
+extern void WAIT_PARENT(void);
+extern void TELL_CHILD(pid_t pid);
+extern void WAIT_CHILD(void);
 
 static int update(long *ptr)
 {
@@ -38,7 +46,7 @@ int main(int argc,char* argv[],char* envp[])
 
 	if((pid=fork())<0)	err_sys("fork")
 	else if(pid>0){
-		printf("parent start!!");
+		printf("parent start!!\n");
 		for(i=0;i<NLOOPS;i+=2){
 			if((counter=update((long*)area))!=i){
 				printf("parent: expected %d, got %d",i,counter);
@@ -49,7 +57,7 @@ int main(int argc,char* argv[],char* envp[])
 		}
 	}
 	else{
-		printf("child start!!");
+		printf("child start!!\n");
 		for(i=1;i<NLOOPS+1;i+=2){
 			WAIT_PARENT();
 
