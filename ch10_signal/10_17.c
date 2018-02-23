@@ -1,8 +1,9 @@
 
-#include<stdio.h>
+#include <stdio.h>
+#include <signal.h>
 
 static volatile sig_atomic_t sigflag;
-static sigset_t newmask,oldmaks,zeromask;
+static sigset_t newmask,oldmask,zeromask;
 
 static void sig_usr(int signo)
 {
