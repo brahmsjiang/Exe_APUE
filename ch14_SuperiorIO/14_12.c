@@ -5,16 +5,22 @@
     > Created Time: 2018年02月23日 星期五 14时10分43秒
  ************************************************************************/
 
-#include<stdio.h>
-#include<stdlib.h>
-#include<fcntl.h>
-#include<sys/mman.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <fcntl.h>
+#include <sys/mman.h>
 #include <errno.h>		/* for definition of errno */
 #include <stdarg.h>		/* ISO C variable aruments */
 #include <string.h>
+#include <sys/stat.h>	//stat
+#include <unistd.h>		//seek,write,ftruncate
 
+#define	FILEMODE	(S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH)
+//S_IRUSR user read; S_IWUSR user write; S_IRGRP gruop read; S_IROTH other read
 #define MAXLINE 200
 #define MAXARGS 31
+
+
 
 static void err_doit(int errnoflag, int error, const char *fmt, va_list ap);
 
@@ -69,22 +75,19 @@ static void err_doit(int errnoflag, int error, const char *fmt, va_list ap)
 //int fflush(FILE * stream);
 void print_vari_str(const char* args, ...)
 {
-	char buf[MAXLINE];
+	char buf[MAXLINE]={0};
 	int argno = 0;
 	
 	va_list ap;
 	va_start(ap, args);
     while (args != 0 && argno < MAXARGS)
     {
-    	printf("%s\n",args);
 		strcat(buf,args);
 		args = va_arg(ap, const char *);
     }
-	printf("===>buf: %s\n",buf);
-
-	//strcat(buf, "\n");
-	//fputs(buf, stdout);
-	//fflush(NULL);
+	strcat(buf, "\n");
+	fputs(buf, stdout);
+	fflush(NULL);
 	va_end(ap);
 }
 
@@ -94,10 +97,46 @@ int main(int argc, char * argv[], char* envp[])
 	void *src,*dst;
 	struct stat statbuf;
 
-	if(argc!=3);
-		print_vari_str("usage:","<fromfile>","<tofile>");
-		//err_quit("usage: %s <fromfile> <tofile>",argv[0]);
+	if(argc!=3)
+		//print_vari_str("usage:","<fromfile>","<tofile>");
+		err_quit("usage: %s <fromfile> <tofile>",argv[0]);
 	if((fdin=open(argv[1], O_RDONLY))<0)
+		err_sys("can't open %s for reading",argv[1]);
+	//O_CREATE need third para=>filemode; O_TRUNC if writable len cut to zero
+	if((fdout=open(argv[2],O_RDWR|O_CREAT|O_TRUNC,FILEMODE))<0)
+		err_sys("can't open %s for writing",argv[2]);
+	if(fstat(fdin,&statbuf)<0)
+		err_sys("fstat error");
+	printf("fdin st_size: %ld\n",statbuf.st_size);
+
+	//set size of output file
+//#if 0
+	if(lseek(fdout,statbuf.st_size-1,SEEK_SET)==-1)
+		err_sys("lseek error");
+	if(write(fdout," ",1)!=1)
+		err_sys("write error");
+	if(fstat(fdout,&statbuf)<0)
+		err_sys("fstat error");
+	printf("fdout st_size: %ld\n",statbuf.st_size);
+//#endif
+	//void *mmap(void *addr, size_t len, int prot, int flag, int filedes, off_t off)
+	if((src=mmap(0,statbuf.st_size,PROT_READ,MAP_SHARED,fdin,0))==MAP_FAILED)
+		err_sys("mmap error for input");
+	if((dst=mmap(0,statbuf.st_size,PROT_READ|PROT_WRITE,MAP_SHARED,fdout,0))==MAP_FAILED)
+		err_sys("mmap error for output");
+	memcpy(dst,src,statbuf.st_size);	//does the file copy
+	//int ftruncate(int fd,off_t length) => ret 0 ok;-1 failed
+	ftruncate(fdout,statbuf.st_size+strlen("fuck!"));
+	memcpy((char*)dst+statbuf.st_size,"fuck!",strlen("fuck!"));
+
+	if(fstat(fdout,&statbuf)<0)
+		err_sys("fstat error");
+	printf("fdout st_size: %ld\n",statbuf.st_size);
+
 	exit(0);
 }
+
+
+
+
 
