@@ -8,60 +8,46 @@
 
 #define MAXLINE 200
 
+volatile sig_atomic_t quitflag;	//equal to int
+
 void pr_mask(const char* str);
 static void sig_int(int signo);
 void err_sys(const char *fmt, ...);
 static void err_doit(int, int, const char*, va_list);
 
+static void sig_int(int signo)
+{
+	if(signo==SIGINT)
+		printf("\ninterrupt\n");
+	else if(signo==SIGQUIT)
+		quitflag = 1;
+}
 
 int main(void)
 {
-
-	sigset_t newmask,oldmask,waitmask;
-	pr_mask("program start: ");
+	sigset_t newmask,oldmask,zeromask;
 	if(signal(SIGINT,sig_int)==SIG_ERR)
 		err_sys("signal(SIGINT) error");
-	//if(signal(SIGUSR1,sig_int)==SIG_ERR)
-	//	err_sys("signal(SIGUSR1) error");
 	if(signal(SIGQUIT,sig_int)==SIG_ERR)
-		err_sys("signal(QUIT) error");
-	sigemptyset(&waitmask);
-	sigaddset(&waitmask,SIGUSR1);	//waitmask=> USR1
-	sigemptyset(&newmask);
-	sigaddset(&newmask,SIGINT);		//newmask=> INT
+		err_sys("signal(SIGQUIT) error");
 
-	//block SIGINT and save current signal mask.
+	sigemptyset(&zeromask);
+	sigemptyset(&newmask);
+	sigaddset(&newmask,SIGQUIT);	//block quit then suspend to catch quit is a method of prevent from omitting quit
+
+	//block SIGQUIT and save current signal mask.
 	if(sigprocmask(SIG_BLOCK,&newmask,&oldmask)<0)
 		err_sys("SIG_BLOCK error");
 
-	//critical region of code
-	pr_mask("in critical region: ");
-	
-	//printf("block INT first,wait..\n");
-	//pause();
+	while(quitflag==0)
+		sigsuspend(&zeromask);
 
-	//pause,allow all signals except SIGUSR1
-	printf("block USR1 then,wait..\n");
-	if(sigsuspend(&waitmask)!=-1)
-		err_sys("sigsuspend error");
-	pr_mask("after return from sigsuspend: ");
-
-	//reset signal mask which unblocks SIGINT
+	quitflag=0;
 	if(sigprocmask(SIG_SETMASK,&oldmask,NULL)<0)
 		err_sys("SIG_SETMASK error");
-
-	//printf("unblock all,wait..\n");
-	//pause();
-	//and continue processing...
-	pr_mask("program exit: ");
 	exit(0);
 }
 
-
-static void sig_int(int signo)
-{
-	pr_mask("\nin sig_func: ");
-}
 
 void pr_mask(const char* str)
 {
